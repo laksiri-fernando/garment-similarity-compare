@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garment Similarity Search</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            background: var(--card);
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+
+        main {
+            width: 90%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        .panel {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background-color: #eff6ff;
+        }
+
+        .preview {
+            margin-top: 1rem;
+            max-width: 100%;
+            border-radius: 4px;
+            max-height: 300px;
+            object-fit: contain;
+            display: none;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .result-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-img {
+            width: 100%;
+            height: 600px;
+            object-fit: contain;
+            background-color: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .result-info {
+            padding: 1rem;
+        }
+
+        .score {
+            display: inline-block;
+            background: #dcfce7;
+            color: #166534;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .filename {
+            display: block;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 2rem;
+            color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Kingslake Garment Similarity</h1>
+        <button id="index-all-btn" style="width: auto; margin: 0; background: #475569;">Re-index All Samples</button>
+    </header>
+
+    <main>
+        <!-- Left: Upload New Style -->
+        <div class="panel">
+            <h2>Add New Style</h2>
+            <p style="font-size: 0.9rem; color: #64748b;">Upload a new image to add it to the database.</p>
+
+            <div class="drop-zone" id="upload-zone">
+                <p>Drag & Drop or Click to Upload</p>
+                <input type="file" id="upload-input" hidden accept="image/*">
+            </div>
+            <img id="upload-preview" class="preview">
+            <button id="upload-btn" disabled>Add to Index</button>
+            <p id="upload-status" style="margin-top: 1rem; font-size: 0.9rem;"></p>
+        </div>
+
+        <!-- Right: Search -->
+        <div class="panel">
+            <h2>Find Similar Styles</h2>
+            <div class="drop-zone" id="search-zone">
+                <p>Drag & Drop Query Image Here</p>
+                <input type="file" id="search-input" hidden accept="image/*">
+            </div>
+            <img id="search-preview" class="preview">
+
+            <div id="loading">Searching...</div>
+
+            <div id="results" class="results-grid"></div>
+        </div>
+    </main>
+
+    <script>
+        // Helper to handle drag/drop and selection
+        function setupUploader(zoneId, inputId, previewId, callback) {
+            const zone = document.getElementById(zoneId);
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+
+            zone.addEventListener('click', () => input.click());
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                zone.addEventListener(eventName, () => zone.classList.add('dragover'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, () => zone.classList.remove('dragover'), false);
+            });
+
+            zone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            });
+
+            input.addEventListener('change', function () {
+                handleFiles(this.files);
+            });
+
+            function handleFiles(files) {
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (!file.type.startsWith('image/')) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+
+                    callback(file);
+                }
+            }
+        }
+
+        // --- Logic ---
+
+        // 1. Add New Style
+        let fileToUpload = null;
+        setupUploader('upload-zone', 'upload-input', 'upload-preview', (file) => {
+            fileToUpload = file;
+            document.getElementById('upload-btn').disabled = false;
+            document.getElementById('upload-status').innerText = "";
+        });
+
+        document.getElementById('upload-btn').addEventListener('click', async () => {
+            if (!fileToUpload) return;
+
+            const formData = new FormData();
+            formData.append('file', fileToUpload);
+
+            const btn = document.getElementById('upload-btn');
+            const status = document.getElementById('upload-status');
+
+            btn.disabled = true;
+            btn.innerText = "Uploading...";
+
+            try {
+                const res = await fetch('/upload-sample', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                status.innerText = "✅ " + data.message;
+                status.style.color = "green";
+            } catch (err) {
+                status.innerText = "❌ Error: " + err.message;
+                status.style.color = "red";
+            } finally {
+                btn.innerText = "Add to Index";
+                btn.disabled = false;
+            }
+        });
+
+        // 2. Index All
+        document.getElementById('index-all-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('index-all-btn');
+            const originalText = btn.innerText;
+
+            if (!confirm("Are you sure you want to re-index all images in the samples folder? This might take a moment.")) return;
+
+            btn.disabled = true;
+            btn.innerText = "Indexing...";
+
+            try {
+                const res = await fetch('/index', { method: 'POST' });
+                const data = await res.json();
+                alert(`✅ Success: ${data.message} (${data.count} images indexed)`);
+            } catch (err) {
+                alert("❌ Error indexing: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
+        });
+
+        // 3. Search
+        setupUploader('search-zone', 'search-input', 'search-preview', async (file) => {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/search', {
+                    method: 'POST',
+                    body: formData
+                });
+                const results = await res.json();
+                renderResults(results);
+            } catch (err) {
+                alert("Search failed: " + err.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        function renderResults(results) {
+            const container = document.getElementById('results');
+            container.innerHTML = '';
+
+            results.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.innerHTML = `
+                    <img src="${item.url}" class="result-img" loading="lazy">
+                    <div class="result-info">
+                        <span class="score">${(parseFloat(item.score) * 100).toFixed(1)}% Match</span>
+                        <span class="filename">${item.filename}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+    </script>
+</body>
+
+</html>

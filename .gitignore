@@ -1,3 +1,6 @@
+# ignores in working directory
+style-clasification/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

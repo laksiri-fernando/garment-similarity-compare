@@ -1,0 +1,17 @@
+- [/] Model Selection and Research
+  - [x] Analyze requirements (Users constraint: 50-100 images, growing slowly)
+  - [x] Compare proposed models (CLIP, SigLIP, DINOv2, etc.)
+  - [x] Analyze user-provided sample images
+  - [x] Run comparison script on samples (DINOv2 vs SigLIP vs CLIP)
+  - [x] Agree on final model (Selected: DINOv2 + FAISS)
+- [x] Requirements Definition & Planning
+  - [x] Create implementation_plan.md
+  - [x] Implementation (POC)
+  - [x] Setup project structure
+  - [x] Implement core logic (DINOv2 + FAISS)
+  - [x] Implement REST API (FastAPI)
+  - [x] Implement Frontend (HTML/JS)
+  - [x] Create Dockerfile and docker-compose.yml
+- [x] Verification
+  - [x] Verify with API integration tests
+  - [x] Verify Docker build and run
